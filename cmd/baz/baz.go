@@ -1,26 +1,36 @@
 package main
 
 import (
-	"fmt"
 	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"t0mmyt/baz/servicediscovery"
+	"t0mmyt/baz/servicedispatch"
 )
 
 var (
 	TOKEN = kingpin.Arg("token", "Slack token").Envar("TOKEN").Required().String()
+	DEBUG = kingpin.Arg("debug", "Debug logging").Default("false").Bool()
 )
 
 func main() {
+	logger := log.New()
+	logger.SetFormatter(&log.JSONFormatter{})
 	kingpin.Parse()
-	fmt.Printf("Token: '%s'\n", *TOKEN)
+	if *DEBUG {
+		logger.SetLevel(log.DebugLevel)
+	} else {
+		logger.SetLevel(log.InfoLevel)
+	}
+
 	api := slack.New(*TOKEN)
 	rtm := api.NewRTM()
 	go rtm.ManageConnection()
 
-	m := servicediscovery.NewMessageHandler(rtm)
-	m.AddKeyword("ping", "pingservice")
+	m := servicedispatch.NewMessageHandler(rtm, logger)
+	err := m.AddService("localhost:8080")
+	if err != nil {
+		log.Errorf("adding services: %s", err)
+	}
 
 MainEvtLoop:
 	for {
@@ -34,12 +44,16 @@ MainEvtLoop:
 			case *slack.InvalidAuthEvent:
 				log.Errorln("Auth Error")
 				break MainEvtLoop
+
+			case *slack.HelloEvent:
+				logger.Info("Connected")
+
 			default:
 				if evt.Type != "latency_report" {
-					fmt.Printf("Event: %s\n", evt.Type)
+					logger.Debugf("Event: %s\n", evt.Type)
 				}
 			}
 		}
 	}
-	fmt.Println("Fin.")
+	logger.Info("Fin.")
 }

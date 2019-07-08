@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+service Keywords {
+    rpc GetKeywords (KeywordsRequest) returns (KeywordsResponse) {}
+}
+
+service Message {
+    rpc HandleMessage (Request) returns (Response) {}
+}
+
+message KeywordsRequest {
+    bytes txn = 1;
+}
+
+message KeywordsResponse {
+    bytes txn = 1;
+    repeated string keyword = 2;
+}
+
+message Request {
+    bytes txn = 1;
+    string message = 2;
+}
+
+message Response {
+    bytes txn = 1;
+    string message = 2;
+}
