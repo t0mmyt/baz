@@ -3,14 +3,15 @@ package servicedispatch
 import (
 	"context"
 	"fmt"
+	"strings"
+	"t0mmyt/baz/messaging"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/nlopes/slack"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"gopkg.in/jdkato/prose.v2"
-	"strings"
-	"t0mmyt/baz/messaging"
-	"time"
 )
 
 type MessageHandler struct {
@@ -42,7 +43,7 @@ func (m MessageHandler) AddService(host string) error {
 	client := messaging.NewKeywordsClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	req, err := client.GetKeywords(ctx, &messaging.KeywordsRequest{Txn: *txn})
+	req, err := client.GetKeywords(ctx, &messaging.KeywordsRequest{Txn: txn})
 	if err != nil {
 		return fmt.Errorf("getting messaging from host %s: %s", host, err)
 	}
@@ -54,18 +55,16 @@ func (m MessageHandler) AddService(host string) error {
 }
 
 func (m MessageHandler) HandleMessage(msg, channel string) error {
-	var response string
-
 	tokens, err := tokenise(msg)
 	if err != nil {
 		return err
 	}
 
+	var response string
 	switch (*tokens)[0] {
 	case "ping":
 		response = "pong"
-
-	case "messaging":
+	case "keywords":
 		keys := make([]string, len(m.services))
 		i := 0
 		for k := range m.services {
@@ -73,7 +72,6 @@ func (m MessageHandler) HandleMessage(msg, channel string) error {
 			i++
 		}
 		response = strings.Join(keys, ", ")
-
 	default:
 		tokens, err := tokenise(msg)
 		if err != nil {
@@ -90,6 +88,7 @@ func (m MessageHandler) HandleMessage(msg, channel string) error {
 			response = "Fuck knows?"
 		}
 	}
+
 	m.logger.Infof("Sent: %s", response)
 	m.rtm.SendMessage(m.rtm.NewOutgoingMessage(response, channel))
 	return nil
@@ -113,12 +112,13 @@ func (m *MessageHandler) sendMessage(host, msg string) (string, error) {
 	defer cancel()
 
 	res, err := client.HandleMessage(ctx, &messaging.Request{
-		Txn:     *txn,
+		Txn:     txn,
 		Message: msg,
 	})
 	if err != nil {
 		return response, err
 	}
+
 	return res.Message, nil
 }
 
@@ -130,7 +130,6 @@ func tokenise(msg string) (*[]string, error) {
 
 	tokens := doc.Tokens()
 	texts := make([]string, len(tokens))
-
 	for i := range texts {
 		texts[i] = strings.ToLower(tokens[i].Text)
 	}
@@ -138,14 +137,16 @@ func tokenise(msg string) (*[]string, error) {
 	return &texts, nil
 }
 
-func randomUuid() (*[]byte, error) {
+func randomUuid() ([]byte, error) {
 	u, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
+
 	txn, err := u.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
-	return &txn, nil
+
+	return txn, nil
 }

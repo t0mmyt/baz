@@ -1,10 +1,11 @@
 package main
 
 import (
+	"t0mmyt/baz/servicedispatch"
+
 	"github.com/nlopes/slack"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"t0mmyt/baz/servicedispatch"
 )
 
 var (
